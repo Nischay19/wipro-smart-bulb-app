@@ -12,6 +12,8 @@ glowctl: control the bulb over the LAN (config: ~/.config/glow/bulb.json, or $GL
   glowctl natural                    apply the Natural Light white for the current time
   glowctl notify                     ~2 s "done" signal: candle flicker if off, brightness pulse if on,
                                      then restore exactly what was there (used by a Claude Code hook)
+  glowctl turn-start                 Claude Code UserPromptSubmit hook: note when a turn began
+  glowctl turn-end [minutes]         Claude Code Stop hook: notify only if the turn ran ≥ minutes (default 10)
   glowctl colours                    list colour names
 """
 
@@ -101,16 +103,53 @@ func notifyDone(_ bulb: TuyaConnection) async throws {
     try await Task.sleep(for: .milliseconds(200))
 }
 
+/// Claude Code hook helpers: remember when a turn started (UserPromptSubmit) and, when it ends (Stop),
+/// report how long it took, so the bulb only signals after long-running work.
+enum TurnTimer {
+    static let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/glow/turns")
+
+    /// The hook's stdin JSON carries `session_id`; keep it filename-safe.
+    static func sessionFile() -> URL {
+        var id = "default"
+        if isatty(STDIN_FILENO) == 0,
+           let obj = try? JSONSerialization.jsonObject(with: FileHandle.standardInput.readDataToEndOfFile()) as? [String: Any],
+           let raw = obj["session_id"] as? String {
+            let safe = String(raw.filter { $0.isLetter || $0.isNumber || $0 == "-" }.prefix(64))
+            if !safe.isEmpty { id = safe }
+        }
+        return dir.appendingPathComponent(id)
+    }
+
+    static func start() {
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? String(Date().timeIntervalSince1970).write(to: sessionFile(), atomically: true, encoding: .utf8)
+    }
+
+    /// Seconds since the matching start, or nil if there was none. Clears the marker.
+    static func end() -> TimeInterval? {
+        let file = sessionFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        guard let text = try? String(contentsOf: file, encoding: .utf8), let start = Double(text) else { return nil }
+        return Date().timeIntervalSince1970 - start
+    }
+}
+
 @main
 struct GlowCtl {
     static func main() async {
         var args = Array(CommandLine.arguments.dropFirst())
-        guard let verb = args.first?.lowercased() else { print(usage); return }
+        guard var verb = args.first?.lowercased() else { print(usage); return }
         args.removeFirst()
         if verb == "colours" || verb == "colors" {
             print(named.sorted { $0.value < $1.value }.map(\.key).joined(separator: " ")); return
         }
         if ["-h", "--help", "help"].contains(verb) { print(usage); return }
+        if verb == "turn-start" { TurnTimer.start(); return }
+        if verb == "turn-end" {
+            let minutes = Double(args.first ?? "") ?? 10
+            guard let elapsed = TurnTimer.end(), elapsed >= minutes * 60 else { return }
+            verb = "notify"
+        }
 
         let config: BulbConfig
         do { config = try BulbConfig.load() } catch {
