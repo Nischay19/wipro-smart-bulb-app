@@ -93,6 +93,33 @@ public enum Kelvin {
     public static func toTemperature(_ k: Int) -> Int { min(max(Int((Double(k - 2700) / 3800 * 1000).rounded()), 0), 1000) }
 }
 
+/// Preferences shared by Glow.app (which edits them) and glowctl (which reads them in hooks),
+/// stored at ~/.config/glow/settings.json.
+public struct GlowSettings: Codable, Sendable {
+    /// Blink when a long Claude Code turn finishes (checked by `glowctl turn-end`).
+    public var claudeAlerts: Bool
+
+    public init(claudeAlerts: Bool = true) { self.claudeAlerts = claudeAlerts }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        claudeAlerts = try c.decodeIfPresent(Bool.self, forKey: .claudeAlerts) ?? true
+    }
+
+    public static var url: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/glow/settings.json")
+    }
+
+    public static func load() -> GlowSettings {
+        (try? JSONDecoder().decode(GlowSettings.self, from: Data(contentsOf: url))) ?? GlowSettings()
+    }
+
+    public func save() throws {
+        try FileManager.default.createDirectory(at: Self.url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONEncoder().encode(self).write(to: Self.url, options: .atomic)
+    }
+}
+
 /// Connection details stored by the setup script at ~/.config/glow/bulb.json (mode 600).
 public struct BulbConfig: Codable, Sendable {
     public var name: String

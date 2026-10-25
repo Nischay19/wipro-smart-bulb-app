@@ -15,6 +15,7 @@ struct PanelView: View {
                 warmWhite
                 colour
                 naturalLight
+                claudeAlert
             }
             footer
         }
@@ -184,6 +185,30 @@ struct PanelView: View {
         .background(RoundedRectangle(cornerRadius: 12).fill(.background.opacity(0.6)))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.primary.opacity(0.08)))
         .help("Cool and bright at midday, warm and dim in the evening. Any manual change pauses it.")
+    }
+
+    // MARK: Claude Code alert
+
+    private var claudeAlert: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.title3)
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Claude Code alert").font(.callout.weight(.semibold))
+                Text(model.claudeAlerts ? "Blinks after tasks over 2 min" : "Off")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Toggle("Claude Code alert", isOn: Binding(get: { model.claudeAlerts }, set: { model.setClaudeAlerts($0) }))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 12).fill(.background.opacity(0.6)))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.primary.opacity(0.08)))
+        .help("Candle flicker if the bulb is off, brightness pulse if it's on. Needs the Claude Code hooks from the README.")
     }
 
     // MARK: Footer / setup

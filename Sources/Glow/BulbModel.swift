@@ -39,6 +39,9 @@ final class BulbModel {
     private(set) var naturalLight = false
     private(set) var naturalStatus = "Follows the time of day"
 
+    /// Shared with glowctl's Claude Code Stop hook via ~/.config/glow/settings.json.
+    private(set) var claudeAlerts = GlowSettings.load().claudeAlerts
+
     private(set) var myGlow: WhitePreset
     var presets: [WhitePreset] {
         [myGlow,
@@ -198,6 +201,14 @@ final class BulbModel {
 
     private func matchingPreset() -> WhitePreset? {
         presets.first { abs($0.temperature - temperature) <= 5 && abs($0.brightness - whiteBrightness) <= 5 }
+    }
+
+    // MARK: - Claude Code alert
+
+    func setClaudeAlerts(_ enabled: Bool) {
+        var settings = GlowSettings.load()
+        settings.claudeAlerts = enabled
+        if (try? settings.save()) != nil { claudeAlerts = enabled } // on failure the switch stays put
     }
 
     // MARK: - Natural Light

@@ -13,7 +13,8 @@ glowctl: control the bulb over the LAN (config: ~/.config/glow/bulb.json, or $GL
   glowctl notify                     ~2 s "done" signal: candle flicker if off, brightness pulse if on,
                                      then restore exactly what was there (used by a Claude Code hook)
   glowctl turn-start                 Claude Code UserPromptSubmit hook: note when a turn began
-  glowctl turn-end [minutes]         Claude Code Stop hook: notify only if the turn ran ≥ minutes (default 10)
+  glowctl turn-end [minutes]         Claude Code Stop hook: notify if the turn ran ≥ minutes (default 10)
+                                     and "Claude Code alert" is on in Glow.app
   glowctl colours                    list colour names
 """
 
@@ -147,7 +148,8 @@ struct GlowCtl {
         if verb == "turn-start" { TurnTimer.start(); return }
         if verb == "turn-end" {
             let minutes = Double(args.first ?? "") ?? 10
-            guard let elapsed = TurnTimer.end(), elapsed >= minutes * 60 else { return }
+            guard let elapsed = TurnTimer.end(), elapsed >= minutes * 60,
+                  GlowSettings.load().claudeAlerts else { return } // switch lives in Glow.app
             verb = "notify"
         }
 

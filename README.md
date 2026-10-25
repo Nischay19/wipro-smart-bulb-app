@@ -64,20 +64,21 @@ glowctl notify                  # 2 s "done" signal, then restores the bulb's st
 
 ### "Claude is done" light
 
-Signals only when a Claude turn ran **10+ minutes** (off → warm candle flicker; on → brightness pulse;
-then the bulb goes back to exactly how it was). Add to `~/.claude/settings.json`:
+Signals when a Claude turn ran **2+ minutes** (off → warm candle flicker; on → brightness pulse; then
+the bulb goes back to exactly how it was). Turn it on/off with the **Claude Code alert** switch in the
+menu panel. Add to `~/.claude/settings.json`:
 
 ```json
 "hooks": {
   "UserPromptSubmit": [ { "hooks": [ { "type": "command",
     "command": "\"$HOME/.local/bin/glowctl\" turn-start >/dev/null 2>&1 || true", "timeout": 5 } ] } ],
   "Stop": [ { "hooks": [ { "type": "command",
-    "command": "\"$HOME/.local/bin/glowctl\" turn-end 10 >/dev/null 2>&1 || true",
+    "command": "\"$HOME/.local/bin/glowctl\" turn-end 2 >/dev/null 2>&1 || true",
     "async": true, "timeout": 15 } ] } ]
 }
 ```
 
-Change `10` to any number of minutes; use `glowctl notify` in the Stop hook to signal on every reply.
+Change `2` to any number of minutes.
 
 ## Project layout
 
