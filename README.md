@@ -88,6 +88,27 @@ glowctl on | off | toggle
 
 `scripts/build-app.sh --install` puts `glowctl` in `~/.local/bin`.
 
+### "Claude is done" light (Claude Code hook)
+
+`glowctl notify` gives a ~2 second signal and then leaves the bulb exactly as it was:
+- **bulb off** → warm candle flicker, then off again (its remembered colour/white is restored too)
+- **bulb on** → brightness pulses, then the original colour or white comes back
+
+Wire it to Claude Code's `Stop` event (fires whenever Claude finishes responding) in
+`~/.claude/settings.json`. `async` keeps it from ever delaying Claude:
+
+```json
+"hooks": {
+  "Stop": [
+    { "hooks": [
+      { "type": "command",
+        "command": "\"$HOME/.local/bin/glowctl\" notify >/dev/null 2>&1 || true",
+        "async": true, "timeout": 15 }
+    ]}
+  ]
+}
+```
+
 ## Project layout
 
 ```

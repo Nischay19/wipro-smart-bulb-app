@@ -10,6 +10,8 @@ glowctl: control the bulb over the LAN (config: ~/.config/glow/bulb.json, or $GL
   glowctl white <kelvin|0-1000> [%]  e.g. glowctl white 3000K 70
   glowctl colour <name|#rrggbb> [%]  e.g. glowctl colour red, glowctl colour #ff6600 40
   glowctl natural                    apply the Natural Light white for the current time
+  glowctl notify                     ~2 s "done" signal: candle flicker if off, brightness pulse if on,
+                                     then restore exactly what was there (used by a Claude Code hook)
   glowctl colours                    list colour names
 """
 
@@ -36,6 +38,67 @@ func describe(_ s: BulbState) -> String {
     }
     if let c = s.colour { parts.append("colour=h\(c.h) s\(c.s / 10)% v\(c.v / 10)%") }
     return parts.joined(separator: "  ")
+}
+
+/// A ~2 second "work is done" signal that leaves the bulb exactly as it found it.
+/// Off: warm candle flicker, then off again. On: brightness dips and returns, then the original
+/// mode/colour/brightness is restored.
+func notifyDone(_ bulb: TuyaConnection) async throws {
+    var s = BulbState()
+    s.merge(try await bulb.status())
+    let warm = Kelvin.toTemperature(2800)
+    let end = Date().addingTimeInterval(2)
+
+    func pause(_ ms: ClosedRange<Int>) async throws { try await Task.sleep(for: .milliseconds(Int.random(in: ms))) }
+
+    guard s.isOn == true else {
+        try await bulb.set(BulbCommand.white(brightness: 350, temperature: warm))
+        while Date() < end {
+            try await bulb.set([BulbDP.brightness: .int(Int.random(in: 120 ... 650))])
+            try await pause(90 ... 180)
+        }
+        // Turn off and put back the remembered mode/white/colour, so the next "on" looks as before.
+        var off: DPS = [BulbDP.power: .bool(false)]
+        if let m = s.mode { off[BulbDP.mode] = .string(m.rawValue) }
+        if let b = s.brightness { off[BulbDP.brightness] = .int(b) }
+        if let t = s.temperature { off[BulbDP.temperature] = .int(t) }
+        if let c = s.colour { off[BulbDP.colour] = .string(c.hex) }
+        try await bulb.set(off)
+        try await Task.sleep(for: .milliseconds(200)) // let the last frame land before disconnecting
+        return
+    }
+
+    let restore: DPS
+    switch s.mode {
+    case .colour?:
+        let c = s.colour ?? HSV(h: 40, s: 1000, v: 1000)
+        restore = BulbCommand.colour(c)
+        var low = true
+        while Date() < end {
+            try await bulb.set([BulbDP.colour: .string(HSV(h: c.h, s: c.s, v: low ? max(10, c.v / 5) : 1000).hex)])
+            low.toggle()
+            try await pause(250 ... 250)
+        }
+    case .white?:
+        let b = s.brightness ?? 850
+        restore = BulbCommand.white(brightness: b, temperature: s.temperature ?? warm)
+        var low = true
+        while Date() < end {
+            try await bulb.set([BulbDP.brightness: .int(low ? max(10, b / 5) : 1000)])
+            low.toggle()
+            try await pause(250 ... 250)
+        }
+    default: // scene/music modes: blink the power instead
+        restore = [BulbDP.power: .bool(true), BulbDP.mode: .string(s.mode?.rawValue ?? "white")]
+        var on = false
+        while Date() < end {
+            try await bulb.set(BulbCommand.power(on))
+            on.toggle()
+            try await pause(300 ... 300)
+        }
+    }
+    try await bulb.set(restore)
+    try await Task.sleep(for: .milliseconds(200))
 }
 
 @main
@@ -86,6 +149,10 @@ struct GlowCtl {
                 let t = NaturalLight.target()
                 print("Natural Light: \(t.phase) · \(t.kelvin) K · \(t.brightness / 10)%")
                 command = BulbCommand.white(brightness: t.brightness, temperature: t.temperature)
+            case "notify":
+                try await notifyDone(bulb)
+                await bulb.disconnect()
+                return
             default:
                 fail(usage)
             }
