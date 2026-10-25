@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glow Sketch</title>
+<style>
+  :root {
+    --bg: #ecebe8; --panel: rgba(250,249,247,.92); --card: #ffffff; --ink: #1d1c1a; --muted: #6f6c66;
+    --line: rgba(0,0,0,.08); --accent: #f2a93b; --track: #e4e1dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141312; --panel: rgba(36,34,32,.92); --card: #2c2a27; --ink: #f3f0ea; --muted: #a29d94;
+      --line: rgba(255,255,255,.08); --track: #45413c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141312; --panel: rgba(36,34,32,.92); --card: #2c2a27; --ink: #f3f0ea; --muted: #a29d94;
+    --line: rgba(255,255,255,.08); --track: #45413c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; }
+  .menubar { height: 26px; background: rgba(0,0,0,.18); display: flex; justify-content: flex-end;
+    align-items: center; gap: 14px; padding: 0 16px; font-size: 13px; }
+  .menubar .bulb { font-size: 15px; filter: drop-shadow(0 0 6px var(--glow, #ffd28a)); }
+  .stage { display: flex; gap: 32px; padding: 24px 16px 48px; justify-content: center; flex-wrap: wrap; }
+  .notes { max-width: 380px; color: var(--muted); }
+  .notes h1 { color: var(--ink); font-size: 20px; margin: 0 0 6px; }
+  .notes h2 { color: var(--ink); font-size: 14px; margin: 18px 0 4px; }
+  .notes li { margin: 3px 0; }
+  .room { height: 150px; border-radius: 14px; margin-top: 14px; position: relative; overflow: hidden;
+    background: radial-gradient(circle at 50% 12%, var(--glow, #ffd28a) 0%, transparent 65%), #1b1a19;
+    transition: background .4s; }
+  .room::after { content: "Room preview"; position: absolute; bottom: 8px; left: 12px; color: #ffffff99; font-size: 11px; }
+
+  .panel { width: 340px; max-width: 100%; background: var(--panel); backdrop-filter: blur(20px);
+    border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 50px rgba(0,0,0,.25); padding: 14px; }
+  .head { display: flex; align-items: center; gap: 10px; }
+  .head .name { font-weight: 600; font-size: 14px; }
+  .head .sub { color: var(--muted); font-size: 11px; display: flex; align-items: center; gap: 5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #34c759; }
+  .switch { margin-left: auto; width: 44px; height: 26px; border-radius: 13px; background: #34c759; position: relative; cursor: pointer; border: 0; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 20px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  .switch.off { background: var(--track); } .switch.off::after { left: 2px; }
+
+  .section { margin-top: 14px; }
+  .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 2px 6px; display: flex; justify-content: space-between; }
+  .hero { border-radius: 12px; padding: 14px; color: #3b2a12; position: relative; overflow: hidden;
+    background: linear-gradient(135deg, var(--white, #ffe2b0), #fff7ea); box-shadow: 0 6px 28px -6px var(--white, #ffd28a); cursor: pointer; }
+  .hero.active { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hero .title { font-size: 17px; font-weight: 700; }
+  .hero .meta { font-size: 12px; opacity: .75; }
+  .row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .row span { width: 64px; font-size: 11px; color: var(--muted); }
+  .hero .row span { color: #6b5333; }
+  input[type=range] { flex: 1; appearance: none; height: 6px; border-radius: 3px; background: var(--track); outline: none; }
+  input[type=range]::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 1px solid rgba(0,0,0,.15); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+  #warmth { background: linear-gradient(90deg, #ffb46b, #fff1dc, #dfe9ff); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .chip { border: 1px solid rgba(0,0,0,.1); background: rgba(255,255,255,.55); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: #3b2a12; }
+  .chip.star { font-weight: 600; }
+  .save { margin-top: 8px; font-size: 11px; color: #6b5333; text-decoration: underline; cursor: pointer; background: none; border: 0; padding: 0; }
+
+  .colour { background: var(--card); border-radius: 12px; padding: 12px; border: 1px solid var(--line); }
+  .wheelwrap { display: flex; gap: 12px; align-items: center; }
+  canvas { width: 132px; height: 132px; border-radius: 50%; cursor: crosshair; touch-action: none; flex: none; }
+  .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; flex: 1; }
+  .sw { aspect-ratio: 1; border-radius: 8px; border: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+  .sw:hover { transform: scale(1.08); }
+  .hex { font: 11px ui-monospace, Menlo, monospace; color: var(--muted); margin-top: 8px; }
+
+  .natural { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .natural .t { font-weight: 600; } .natural .d { font-size: 11px; color: var(--muted); }
+  .natural .switch { width: 38px; height: 22px; } .natural .switch::after { width: 18px; height: 18px; left: 18px; }
+  .natural .switch.off::after { left: 2px; }
+  .foot { display: flex; justify-content: space-between; margin-top: 12px; color: var(--muted); font-size: 11px; }
+  .themebtn { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 11px; }
+  @media (max-width: 760px) { .notes { max-width: 340px; } }
+</style>
+</head>
+<body>
+<div class="menubar"><span>Wi-Fi</span><span class="bulb" id="mbBulb">💡</span><span id="clock">Sat 20:19</span></div>
+
+<div class="stage">
+  <div class="panel" id="panel">
+    <div class="head">
+      <div style="font-size:22px">💡</div>
+      <div>
+        <div class="name">Smart Bulb 12.5W</div>
+        <div class="sub"><span class="dot"></span>192.168.1.25 · local</div>
+      </div>
+      <button class="switch" id="power" aria-label="Power"></button>
+    </div>
+
+    <div class="section">
+      <div class="label"><span>Warm White</span><span id="kelvin">3080 K</span></div>
+      <div class="hero active" id="hero">
+        <div class="title" id="heroTitle">My Glow</div>
+        <div class="meta" id="heroMeta">Whitish yellow · 85%</div>
+        <div class="row"><span>Warmth</span><input type="range" id="warmth" min="0" max="1000" value="100"></div>
+        <div class="row"><span>Brightness</span><input type="range" id="wbright" min="10" max="1000" value="850"></div>
+        <div class="chips">
+          <button class="chip star" data-t="100" data-b="850" data-n="My Glow">★ My Glow</button>
+          <button class="chip" data-t="0" data-b="350" data-n="Candle">Candle</button>
+          <button class="chip" data-t="450" data-b="1000" data-n="Reading">Reading</button>
+          <button class="chip" data-t="1000" data-b="1000" data-n="Daylight">Daylight</button>
+        </div>
+        <button class="save" id="save">Save current as My Glow</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label"><span>Colour</span><span id="cmode"></span></div>
+      <div class="colour">
+        <div class="wheelwrap">
+          <canvas id="wheel" width="264" height="264"></canvas>
+          <div class="swatches" id="swatches"></div>
+        </div>
+        <div class="row"><span>Brightness</span><input type="range" id="cbright" min="10" max="1000" value="1000"></div>
+        <div class="hex" id="hex">DP 24 = 000003e803e8</div>
+      </div>
+    </div>
+
+    <div class="section natural">
+      <div style="font-size:18px">☀️</div>
+      <div style="flex:1"><div class="t">Natural Light</div><div class="d" id="natDesc">Follows the time of day</div></div>
+      <button class="switch off" id="nat" aria-label="Natural Light"></button>
+    </div>
+
+    <div class="foot"><span>Glow · LAN protocol 3.5</span><button class="themebtn" id="theme">Theme</button></div>
+  </div>
+
+  <div class="notes">
+    <h1>Glow: interactive sketch</h1>
+    <p>Mockup of the macOS menu-bar panel. Everything here is clickable; the room preview shows roughly what the bulb would do.</p>
+    <div class="room" id="room"></div>
+    <h2>Layout decisions</h2>
+    <ul>
+      <li><b>Warm White is the hero.</b> Top of the panel, biggest card, starred <b>My Glow</b> preset (whitish yellow ≈ 3080 K, 85%).</li>
+      <li><b>Colour</b>: drag the wheel for any hue/saturation, or tap one of 16 swatches.</li>
+      <li><b>Natural Light</b>: one switch; the line underneath says what it's doing right now.</li>
+      <li>Any manual change pauses Natural Light (same as Philips Hue).</li>
+    </ul>
+    <h2>What each control sends</h2>
+    <ul>
+      <li>Power → DP 20</li>
+      <li>White → DP 21 = white, DP 22 brightness, DP 23 warmth</li>
+      <li>Colour → DP 21 = colour, DP 24 = <code>hhhhssssvvvv</code></li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let on = true, mode = "white", hue = 0, sat = 1000, natural = false;
+
+function kelvin(t) { return Math.round(2700 + (t / 1000) * 3800); }
+function kelvinRGB(k) {               // Tanner Helland approximation
+  const t = k / 100; let r, g, b;
+  r = t <= 66 ? 255 : 329.698727446 * Math.pow(t - 60, -0.1332047592);
+  g = t <= 66 ? 99.4708025861 * Math.log(t) - 161.1195681661 : 288.1221695283 * Math.pow(t - 60, -0.0755148492);
+  b = t >= 66 ? 255 : t <= 19 ? 0 : 138.5177312231 * Math.log(t - 10) - 305.0447927307;
+  const c = v => Math.max(0, Math.min(255, Math.round(v)));
+  return `rgb(${c(r)},${c(g)},${c(b)})`;
+}
+function hsl(h, s, v) { return `hsl(${h} ${Math.round(s / 10)}% ${Math.round(100 - s / 20)}%)`; }
+const hex4 = n => Math.round(n).toString(16).padStart(4, "0");
+
+function render() {
+  const t = +$("warmth").value, wb = +$("wbright").value, cb = +$("cbright").value;
+  const white = kelvinRGB(kelvin(t));
+  document.documentElement.style.setProperty("--white", white);
+  $("kelvin").textContent = kelvin(t) + " K";
+  $("heroMeta").textContent = `${kelvin(t)} K · ${Math.round(wb / 10)}%`;
+  $("hero").classList.toggle("active", mode === "white");
+  $("cmode").textContent = mode === "colour" ? `H ${Math.round(hue)}° · S ${Math.round(sat / 10)}%` : "";
+  $("hex").textContent = `DP 24 = ${hex4(hue)}${hex4(sat)}${hex4(cb)}`;
+  $("power").classList.toggle("off", !on);
+  let glow = !on ? "#00000000" : mode === "white" ? white : hsl(hue, sat, cb);
+  const alpha = mode === "white" ? wb / 1000 : cb / 1000;
+  $("room").style.setProperty("--glow", on ? `color-mix(in srgb, ${glow} ${Math.round(30 + alpha * 70)}%, transparent)` : "transparent");
+  $("mbBulb").style.setProperty("--glow", on ? glow : "transparent");
+  drawWheel();
+}
+
+// colour wheel
+const cv = $("wheel"), cx = cv.getContext("2d");
+function drawWheel() {
+  const R = cv.width / 2;
+  const img = cx.createImageData(cv.width, cv.height);
+  for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) {
+    const dx = x - R, dy = y - R, d = Math.hypot(dx, dy); const i = (y * cv.width + x) * 4;
+    if (d > R) { img.data[i + 3] = 0; continue; }
+    const h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, s = d / R;
+    const f = n => { const k = (n + h / 60) % 6; return 1 - s * Math.max(0, Math.min(k, 4 - k, 1)); };
+    img.data[i] = f(5) * 255; img.data[i + 1] = f(3) * 255; img.data[i + 2] = f(1) * 255; img.data[i + 3] = 255;
+  }
+  cx.putImageData(img, 0, 0);
+  if (mode === "colour") {
+    const a = hue * Math.PI / 180, r = sat / 1000 * R;
+    cx.beginPath(); cx.arc(R + Math.cos(a) * r, R + Math.sin(a) * r, 11, 0, 7);
+    cx.lineWidth = 4; cx.strokeStyle = "#fff"; cx.stroke(); cx.lineWidth = 1; cx.strokeStyle = "#0004"; cx.stroke();
+  }
+}
+function pick(e) {
+  const r = cv.getBoundingClientRect(), R = r.width / 2;
+  const dx = e.clientX - r.left - R, dy = e.clientY - r.top - R;
+  hue = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+  sat = Math.min(1, Math.hypot(dx, dy) / R) * 1000;
+  mode = "colour"; on = true; pauseNatural(); render();
+}
+let dragging = false;
+cv.addEventListener("pointerdown", e => { dragging = true; cv.setPointerCapture(e.pointerId); pick(e); });
+cv.addEventListener("pointermove", e => dragging && pick(e));
+cv.addEventListener("pointerup", () => dragging = false);
+
+const SW = [0, 15, 30, 45, 60, 90, 120, 160, 180, 200, 220, 245, 270, 290, 310, 335];
+SW.forEach(h => { const b = document.createElement("button"); b.className = "sw"; b.style.background = `hsl(${h} 95% 52%)`;
+  b.title = `Hue ${h}°`; b.onclick = () => { hue = h; sat = 1000; mode = "colour"; on = true; pauseNatural(); render(); }; $("swatches").append(b); });
+
+document.querySelectorAll(".chip").forEach(c => c.onclick = e => { e.stopPropagation();
+  $("warmth").value = c.dataset.t; $("wbright").value = c.dataset.b; $("heroTitle").textContent = c.dataset.n;
+  mode = "white"; on = true; pauseNatural(); render(); });
+["warmth", "wbright"].forEach(id => $(id).oninput = () => { mode = "white"; $("heroTitle").textContent = "Custom"; pauseNatural(); render(); });
+$("cbright").oninput = () => { mode = "colour"; pauseNatural(); render(); };
+$("hero").onclick = e => { if (e.target === $("hero")) { mode = "white"; render(); } };
+$("save").onclick = e => { e.stopPropagation(); const c = document.querySelector(".chip.star");
+  c.dataset.t = $("warmth").value; c.dataset.b = $("wbright").value; $("heroTitle").textContent = "My Glow"; };
+$("power").onclick = () => { on = !on; render(); };
+
+// Natural Light
+const KEYS = [[0, 0, 100], [330, 0, 100], [390, 250, 500], [480, 700, 900], [720, 1000, 1000], [900, 1000, 1000],
+  [1020, 600, 900], [1140, 250, 750], [1260, 80, 500], [1350, 0, 200], [1440, 0, 100]];
+function naturalAt(min) {
+  for (let i = 0; i < KEYS.length - 1; i++) { const [a, ta, ba] = KEYS[i], [b, tb, bb] = KEYS[i + 1];
+    if (min >= a && min <= b) { const f = (min - a) / (b - a); return [ta + (tb - ta) * f, ba + (bb - ba) * f]; } }
+  return [0, 100];
+}
+function phase(min) { return min < 330 ? "Night" : min < 480 ? "Sunrise" : min < 720 ? "Morning" : min < 900 ? "Midday" :
+  min < 1140 ? "Afternoon" : min < 1260 ? "Evening" : "Wind-down"; }
+function applyNatural() {
+  const d = new Date(), m = d.getHours() * 60 + d.getMinutes(), [t, b] = naturalAt(m);
+  $("warmth").value = t; $("wbright").value = Math.max(10, b); mode = "white"; on = true;
+  $("heroTitle").textContent = "Natural Light";
+  $("natDesc").textContent = `${phase(m)} · ${kelvin(t)} K · ${Math.round(b / 10)}%`; render();
+}
+function pauseNatural() { if (natural) { natural = false; $("nat").classList.add("off"); $("natDesc").textContent = "Paused by a manual change"; } }
+$("nat").onclick = () => { natural = !natural; $("nat").classList.toggle("off", !natural);
+  if (natural) applyNatural(); else $("natDesc").textContent = "Follows the time of day"; };
+setInterval(() => natural && applyNatural(), 60000);
+
+$("theme").onclick = () => { const r = document.documentElement;
+  r.dataset.theme = r.dataset.theme === "dark" ? "light" : "dark"; };
+const d = new Date(); $("clock").textContent = d.toLocaleDateString(undefined, { weekday: "short" }) + " " + d.toTimeString().slice(0, 5);
+render();
+</script>
+</body>
+</html>
